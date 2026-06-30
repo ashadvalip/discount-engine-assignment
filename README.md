@@ -64,9 +64,9 @@ npm run build
 This outputs a lightweight static bundle inside the `dist/` directory.
 
 ### Live Deployment
-The project can be deployed instantly to Vercel, Netlify, or Github Pages by dragging the `dist/` folder or linking the repository.
+The project is configured for one-click deployment to Vercel.
 
-- **Live URL:** [https://opptra-discount-engine.vercel.app](https://opptra-discount-engine.vercel.app) *(Deploy URL placeholder — replace this with your actual deployed host)*
+- **Live URL:** [https://discount-engine-assignment-ashadvalip.vercel.app/](https://discount-engine-assignment-ashadvalip.vercel.app/)
 
 ---
 
