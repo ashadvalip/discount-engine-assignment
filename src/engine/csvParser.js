@@ -35,10 +35,11 @@ export function parseRulesCSV(csvText) {
   rows.forEach((row, i) => {
     const rowNum = i + 2 // account for header row
     const missing = []
+    const scope = row.scope ? row.scope.trim().toLowerCase() : ''
 
     if (!row.rule_id) missing.push('rule_id')
     if (!row.scope) missing.push('scope')
-    if (!row.applies_to) missing.push('applies_to')
+    if (scope !== 'cart' && !row.applies_to) missing.push('applies_to')
     if (!row.type) missing.push('type')
     if (row.value === undefined || row.value === '') missing.push('value')
     if (row.stackable === undefined || row.stackable === '') missing.push('stackable')
@@ -48,9 +49,8 @@ export function parseRulesCSV(csvText) {
       return
     }
 
-    const scope = row.scope.trim().toLowerCase()
-    if (scope !== 'brand' && scope !== 'platform') {
-      errors.push(`Row ${rowNum}: scope must be "brand" or "platform", got "${row.scope}"`)
+    if (scope !== 'brand' && scope !== 'platform' && scope !== 'cart') {
+      errors.push(`Row ${rowNum}: scope must be "brand", "platform", or "cart", got "${row.scope}"`)
       return
     }
 
@@ -69,13 +69,26 @@ export function parseRulesCSV(csvText) {
     const stackableStr = row.stackable.trim().toLowerCase()
     const stackable = stackableStr === 'true' || stackableStr === '1' || stackableStr === 'yes'
 
+    let minCartValue = null
+    if (row.min_cart_value !== undefined && row.min_cart_value !== '') {
+      minCartValue = parseFloat(row.min_cart_value)
+      if (isNaN(minCartValue) || minCartValue <= 0) {
+        errors.push(`Row ${rowNum}: min_cart_value must be a positive number, got "${row.min_cart_value}"`)
+        return
+      }
+    } else if (scope === 'cart') {
+      errors.push(`Row ${rowNum}: min_cart_value is required for cart-level rules`)
+      return
+    }
+
     data.push({
       ruleId: row.rule_id.trim(),
       scope,
-      appliesTo: row.applies_to.trim(),
+      appliesTo: row.applies_to ? row.applies_to.trim() : '',
       type,
       value,
       stackable,
+      minCartValue,
     })
   })
 

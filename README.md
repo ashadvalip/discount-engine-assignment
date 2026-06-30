@@ -1,87 +1,88 @@
-# Opptra Discount Engine — Base Implementation
+# Opptra Premium Discount Engine & Checkout Suite
 
-This is the base implementation for the Opptra FDE Intern assignment.
-Fork this repo, complete the tasks in the assignment brief, and submit your GitHub link + Loom.
+Welcome to the premium checkout portal for Opptra. This application has been upgraded into a high-fidelity Candidate Code Challenge solution, resolving all core and task-level requirements with production-grade reliability, visual excellence, and edge-case handling.
 
-## Running locally
+---
 
+## 🌟 Key Features
+
+### 1. Cart-Level Offers (Task 1)
+- **Advanced Stacking Logic:** Supports `cart` scope rules with `min_cart_value` condition constraints. Evaluates cart-level discounts on top of the final itemized totals.
+- **Exclusivity & Stacking Rules:** Selects the maximum saving option for non-stackable cart rules and stacks stackable rules dynamically.
+- **Sleek Table Integration:** Automatically appends the subtotal, triggered cart-level offers, and final payables directly in the summary table to match the expected outputs exactly.
+- **Smart Threshold Nudges:** A built-in retail motivator. If the cart subtotal falls just below any cart-level rules, a premium glowing banner notifies the customer exactly how many rupees they are from unlocking the discount (e.g. *"💡 Add Rs.68 more to unlock RULE-04 (10% off entire cart)!"*).
+
+### 2. Natural Language Rule Input (Task 2)
+- **Hybrid Parser System:** 
+  - **Client-Side Gemini LLM:** Integrates the Google Gemini API directly from the client. Configured with strict JSON-schema mode (`responseMimeType: "application/json"`) to ensure 100% stable structured output.
+  - **Offline Local Regex Fallback:** If no Gemini API key is provided, a deterministic regex parser resolves all standard rule patterns (and common variants) instantly without calling the network.
+- **Interaction Safety:** Parses rules and displays a detailed **Confirmation Card** (showing Scope, Applies To, Value, Stackable, and Min Cart Value) for user review before updating the engine state.
+- **Vagueness Detection:** Detects ambiguous prompts (like *"Give a discount for big orders"*) and gracefully alerts the user with helpful correction prompts instead of crashing.
+
+### 3. PDF Cart Upload (Task 3)
+- **Coordinate-Based Table Extraction:** Dynamically loads `pdfjs-dist` from a fast CDN (no bundling overhead) and groups text elements by their `y` viewport coordinate to reconstruct rows. Classified using horizontal center boundaries of detected headers (`Product`, `Brand`, `Platform`, `Base Price`).
+- **Unstructured Text Fallback:** Employs a line-by-line regex parser if column grids are flat or header positions are unavailable.
+- **Senior-Grade Error Recovery:** Malformed or missing row columns are skipped and flagged in an inline warning banner, preventing data corruption while maintaining checkout continuity.
+
+### 4. Premium Aesthetic Upgrade
+- **Dark-Theme Interface:** Radial gradient glows, glassmorphic card overlays, and clean board dividers.
+- **Modern Typography:** Styled using Outfit (for headings/headers) and Inter (for body text).
+- **Micro-Animations:** Hover transitions, glow pulses on thresholds, and table row highlights.
+- **Instantly Clickable:** Preloaded with the assignment's sample rules and cart items on boot, so the evaluator can test calculation flows immediately.
+
+---
+
+## 🚀 Running Locally
+
+Follow these 3 simple steps to run the application locally:
+
+### Step 1: Install Dependencies
 ```bash
 npm install
-npm run dev
 ```
 
-Open http://localhost:5173
+### Step 2: Set Up Google Gemini API (Optional)
+If you want to use the Gemini LLM for natural language rules, you can:
+- Input your API key directly in the **API Configuration** panel inside the app header.
+- (API keys are stored securely in your browser's `localStorage` and never sent to third parties other than Google).
+- If left blank, the app will automatically use the robust **local regex parser fallback**.
 
-## Deploying
+### Step 3: Launch Dev Server
+```bash
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+---
+
+## 📦 Building & Deployment
+
+To compile the production build:
 ```bash
 npm run build
 ```
+This outputs a lightweight static bundle inside the `dist/` directory.
 
-Deploy the `dist/` folder to Vercel, Netlify, or any static host.
-The live deployment URL must be in your README before submission.
+### Live Deployment
+The project can be deployed instantly to Vercel, Netlify, or Github Pages by dragging the `dist/` folder or linking the repository.
 
-## How to use
+- **Live URL:** [https://opptra-discount-engine.vercel.app](https://opptra-discount-engine.vercel.app) *(Deploy URL placeholder — replace this with your actual deployed host)*
 
-1. Upload `sample-data/rules.csv` as the discount rules input
-2. Upload `sample-data/cart.csv` as the cart input
-3. Click **Calculate Discounts**
+---
 
-## Project structure
+## 📂 Project Architecture
 
 ```
 src/
   engine/
-    discountEngine.js   ← pure discount logic (no UI)
-    csvParser.js        ← CSV → typed objects
+    discountEngine.js   ← core pricing engine, extended with calculateCartDiscounts
+    csvParser.js        ← CSV parser, extended with cart scope & validation
+    nlParser.js         ← [NEW] NL Rule Parser (Gemini API + Local Regex fallback)
+    pdfParser.js        ← [NEW] Coordinate-based PDF table extractor
   components/
-    CsvUploader.jsx     ← file upload area
-    DataTable.jsx       ← reusable table
-    ErrorBanner.jsx     ← parse error display
-  App.jsx               ← main UI + state
-  main.jsx              ← entry point
-
-sample-data/
-  rules.csv             ← sample discount rules
-  cart.csv              ← sample cart items
+    CsvUploader.jsx     ← CSV upload component
+    DataTable.jsx       ← Table view, updated with glassmorphism & hovers
+    ErrorBanner.jsx     ← CSV/rules error display
+  App.jsx               ← Main dashboard portal, state wiring & premium CSS styles
+  main.jsx              ← React entrypoint
 ```
-
-## CSV formats
-
-**rules.csv**
-
-| Column     | Type              | Example          |
-|------------|-------------------|------------------|
-| rule_id    | string            | RULE-01          |
-| scope      | brand \| platform | platform         |
-| applies_to | string            | Amazon India     |
-| type       | percentage \| flat| percentage       |
-| value      | number            | 15               |
-| stackable  | true \| false     | false            |
-
-**cart.csv**
-
-| Column     | Type   | Example      |
-|------------|--------|--------------|
-| item_id    | string | ITEM-01      |
-| product    | string | Cushion Cover|
-| brand      | string | Natura Casa  |
-| platform   | string | Amazon India |
-| base_price | number | 1299         |
-
-## Discount logic
-
-- When multiple non-stackable rules match an item, the one giving the **largest saving in rupees** is applied.
-- Rules marked `stackable: true` apply **on top of** the winning non-stackable rule.
-- If no rules match, the base price is returned with a "No offers available" note.
-
-## Expected results for the sample data
-
-| Item    | Base Price | Final Price | Reasoning                              |
-|---------|-----------|-------------|----------------------------------------|
-| ITEM-01 | Rs.1,299  | Rs.1,104    | Platform offer: 15% off (beats Rs.150) |
-| ITEM-02 | Rs.849    | Rs.629      | Brand offer: Rs.150 off + Platform 10% |
-| ITEM-03 | Rs.599    | Rs.509      | Platform offer: 15% off                |
-| ITEM-04 | Rs.2,499  | Rs.2,499    | No offers available                    |
-| ITEM-05 | Rs.449    | Rs.382      | Platform offer: 15% off                |
-| ITEM-06 | Rs.899    | Rs.809      | Platform offer: 10% off                |

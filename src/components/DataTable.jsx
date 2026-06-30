@@ -10,12 +10,14 @@ export default function DataTable({ columns, rows, emptyMessage = 'No data loade
     return (
       <div
         style={{
-          padding: '1rem',
+          padding: '2rem 1rem',
           textAlign: 'center',
-          color: '#888',
+          color: '#64748b',
           fontSize: 13,
-          border: '1px solid #CECECE',
-          borderRadius: 4,
+          background: 'rgba(30, 41, 59, 0.2)',
+          border: '1px dashed #334155',
+          borderRadius: 8,
+          fontStyle: 'italic',
         }}
       >
         {emptyMessage}
@@ -24,21 +26,23 @@ export default function DataTable({ columns, rows, emptyMessage = 'No data loade
   }
 
   return (
-    <div style={{ overflowX: 'auto', border: '1px solid #CECECE', borderRadius: 4 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+    <div style={{ overflowX: 'auto', border: '1px solid #1e293b', borderRadius: 8, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
-          <tr style={{ background: '#131A48', color: '#fff' }}>
+          <tr style={{ background: '#0b0f19', borderBottom: '2px solid #1e293b' }}>
             {columns.map((col) => (
               <th
                 key={col.key}
                 style={{
-                  padding: '7px 10px',
+                  padding: '12px 16px',
                   textAlign: 'left',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   fontSize: 11,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: '0.08em',
+                  color: '#94a3b8',
                   whiteSpace: 'nowrap',
+                  fontFamily: "'Outfit', sans-serif",
                 }}
               >
                 {col.label}
@@ -50,10 +54,16 @@ export default function DataTable({ columns, rows, emptyMessage = 'No data loade
           {rows.map((row, i) => (
             <tr
               key={i}
-              style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f0f0' }}
+              style={{
+                background: i % 2 === 0 ? 'transparent' : 'rgba(30, 41, 59, 0.1)',
+                borderBottom: '1px solid #1e293b',
+                transition: 'background 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(30, 41, 59, 0.1)' }}
             >
               {columns.map((col) => (
-                <td key={col.key} style={{ padding: '6px 10px', color: '#131A48', verticalAlign: 'top' }}>
+                <td key={col.key} style={{ padding: '12px 16px', color: '#cbd5e1', verticalAlign: 'middle' }}>
                   {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
                 </td>
               ))}

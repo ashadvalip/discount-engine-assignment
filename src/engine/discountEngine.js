@@ -172,3 +172,54 @@ export function processCart(cartItems, rules) {
 export function cartTotal(results) {
   return results.reduce((sum, r) => sum + r.finalPrice, 0)
 }
+
+/**
+ * Calculates cart-level discounts on top of the item-level final totals.
+ */
+export function calculateCartDiscounts(itemTotal, rules) {
+  const cartRules = rules.filter(r => r.scope === 'cart' && itemTotal >= (r.minCartValue || 0))
+  if (cartRules.length === 0) {
+    return null
+  }
+
+  const nonStackable = cartRules.filter(r => !r.stackable)
+  const stackable = cartRules.filter(r => r.stackable)
+
+  let winner = null
+  let skipped = []
+  if (nonStackable.length > 0) {
+    const sorted = [...nonStackable].sort((a, b) => {
+      const amtA = a.type === 'percentage' ? (itemTotal * a.value / 100) : a.value
+      const amtB = b.type === 'percentage' ? (itemTotal * b.value / 100) : b.value
+      return amtB - amtA
+    })
+    winner = sorted[0]
+    skipped = sorted.slice(1)
+  }
+
+  let currentTotal = itemTotal
+  const appliedRules = []
+  let totalSaved = 0
+
+  if (winner) {
+    const amt = winner.type === 'percentage' ? Math.round(currentTotal * winner.value / 100) : winner.value
+    currentTotal -= amt
+    totalSaved += amt
+    appliedRules.push({ rule: winner, saved: amt })
+  }
+
+  for (const rule of stackable) {
+    const amt = rule.type === 'percentage' ? Math.round(currentTotal * rule.value / 100) : rule.value
+    currentTotal -= amt
+    totalSaved += amt
+    appliedRules.push({ rule, saved: amt })
+  }
+
+  return {
+    originalTotal: itemTotal,
+    finalTotal: Math.round(currentTotal),
+    totalSaved: Math.round(totalSaved),
+    appliedRules,
+    skippedRules: skipped.map(r => r.ruleId)
+  }
+}
