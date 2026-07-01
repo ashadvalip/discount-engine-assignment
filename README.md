@@ -66,7 +66,7 @@ This outputs a lightweight static bundle inside the `dist/` directory.
 ### Live Deployment
 The project is configured for one-click deployment to Vercel.
 
-- **Live URL:** [https://discount-engine-assignment-ashadvalip.vercel.app/](https://discount-engine-assignment-ashadvalip.vercel.app/)
+- **Live URL:** [https://discount-engine-assignment-a9i8.vercel.app/](https://discount-engine-assignment-a9i8.vercel.app/)
 
 ---
 
