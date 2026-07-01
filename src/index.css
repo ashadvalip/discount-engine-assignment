@@ -1,2 +1,60 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.15);
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.7);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-pulse-custom {
+  animation: pulse 2s infinite alternate ease-in-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Global inputs focus styling for standard interaction */
+input:focus, textarea:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+  outline: none;
+}
+
+/* Custom animations for buttons */
+button {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+button:active:not(:disabled) {
+  transform: translateY(0);
+}

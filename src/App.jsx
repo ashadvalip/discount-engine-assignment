@@ -707,7 +707,7 @@ export default function App() {
 
               {/* Pending confirmation card */}
               {parsedRulePending && (
-                <div style={S.cardPending}>
+                <div style={S.cardPending} className="animate-slide-in">
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#d8b4fe', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                     <span>🔍 Confirmation Required</span>
                     <span>{parsedRulePending.ruleId}</span>
@@ -1009,7 +1009,7 @@ export default function App() {
 
                 {/* Threshold Nudge */}
                 {nextThresholdNudge && (
-                  <div style={S.nudgeBanner}>
+                  <div style={S.nudgeBanner} className="animate-pulse-custom">
                     <span style={{ fontSize: 16 }}>💡</span>
                     <div>
                       Add <strong>Rs.{nextThresholdNudge.diff.toLocaleString('en-IN')}</strong> more to unlock platform rule <strong>{nextThresholdNudge.ruleId}</strong> (<strong>{nextThresholdNudge.value}% Off</strong> entire cart)!
@@ -1072,31 +1072,37 @@ export default function App() {
 
       {/* PDF Cart Preview Modal Overlay */}
       {pendingCartImport && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(9, 13, 22, 0.85)',
-          backdropFilter: 'blur(16px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999,
-          padding: '2rem'
-        }}>
-          <div style={{
-            background: 'rgba(30, 41, 59, 0.95)',
-            border: '1px solid #334155',
-            borderRadius: 16,
-            maxWidth: 650,
-            width: '100%',
-            padding: '2rem',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(9, 13, 22, 0.85)',
+            backdropFilter: 'blur(16px)',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '1.5rem',
-            maxHeight: '90vh',
-            overflow: 'hidden'
-          }}>
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999,
+            padding: '2rem'
+          }}
+          className="animate-fade-in"
+        >
+          <div 
+            style={{
+              background: 'rgba(30, 41, 59, 0.95)',
+              border: '1px solid #334155',
+              borderRadius: 16,
+              maxWidth: 650,
+              width: '100%',
+              padding: '2rem',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+              maxHeight: '90vh',
+              overflow: 'hidden'
+            }}
+            className="animate-slide-in"
+          >
             <div>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
                 📥 Extracted Cart Preview
