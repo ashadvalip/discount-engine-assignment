@@ -3,30 +3,70 @@
  *
  * Parses natural language discount rules.
  * Supports a local regex-based heuristic parser for immediate offline usage,
- * and a true Google Gemini LLM parser when an API key is available.
+ * and a Google Gemini 2.5 Flash LLM parser with strict JSON schema validation
+ * when an API key is available.
  */
 
 /**
- * Parsed Discount Rule shape:
- * {
- *   ruleId: string,
- *   scope: "brand" | "platform" | "cart",
- *   appliesTo: string,
- *   type: "percentage" | "flat",
- *   value: number,
- *   stackable: boolean,
- *   minCartValue: number | null
- * }
+ * Validates any parsed rule object (from either LLM or local regex) before
+ * allowing it into the discount engine.
  *
- * Ambiguity output shape:
- * {
- *   error: true,
- *   ambiguityReason: string
- * }
+ * @param {Object} rule
+ * @returns {string | null} Error message if invalid, or null if valid.
  */
+function validateParsedRule(rule) {
+  const validScopes = ['brand', 'platform', 'cart'];
+  const validTypes = ['percentage', 'flat'];
 
+  if (!rule || typeof rule !== 'object') {
+    return 'Parser returned an empty or malformed rule object.';
+  }
+  if (!validScopes.includes(rule.scope)) {
+    return 'Rule scope must be "brand", "platform", or "cart".';
+  }
+  if (!validTypes.includes(rule.type)) {
+    return 'Discount type must be "percentage" or "flat".';
+  }
+  if (typeof rule.value !== 'number' || Number.isNaN(rule.value) || rule.value <= 0) {
+    return 'Discount value must be a positive number.';
+  }
+  if (rule.type === 'percentage' && rule.value > 100) {
+    return 'Percentage discount cannot exceed 100%.';
+  }
+  if ((rule.scope === 'brand' || rule.scope === 'platform') && !String(rule.appliesTo || '').trim()) {
+    return `Missing target ${rule.scope} name.`;
+  }
+  if (rule.scope === 'cart') {
+    if (
+      typeof rule.minCartValue !== 'number' ||
+      Number.isNaN(rule.minCartValue) ||
+      rule.minCartValue <= 0
+    ) {
+      return 'Cart-level rules require a positive minimum cart value threshold (e.g., Rs.5,000).';
+    }
+  }
+  return null;
+}
+
+/**
+ * Generates a unique rule ID for natural-language rules.
+ */
+function generateRuleId() {
+  return 'NL-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+}
+
+/**
+ * Deterministic offline regex parser for natural language discount rules.
+ */
 export function parseRuleLocally(input) {
-  const text = input.trim();
+  const text = String(input || '').trim();
+  if (!text) {
+    return {
+      error: true,
+      ambiguityReason: 'Please enter a discount rule description.'
+    };
+  }
+
   const lowerText = text.toLowerCase();
 
   let scope = null;
@@ -37,13 +77,19 @@ export function parseRuleLocally(input) {
   let minCartValue = null;
 
   // Check stackability
-  if (lowerText.includes('stackable') || lowerText.includes('stack with') || lowerText.includes('on top')) {
+  if (
+    lowerText.includes('stackable') ||
+    lowerText.includes('stack with') ||
+    lowerText.includes('on top')
+  ) {
     stackable = true;
   }
 
   // Parse value and type
   const pctMatch = text.match(/(\d+(?:\.\d+)?)\s*%/);
-  const flatMatch = text.match(/Rs\.?\s*([\d,]+)/i) || text.match(/(\d+(?:\.\d+)?)\s*(?:rupees|rs|flat)/i);
+  const flatMatch =
+    text.match(/(?:rs\.?|₹)\s*([\d,]+(?:\.\d+)?)/i) ||
+    text.match(/(\d+(?:\.\d+)?)\s*(?:rupees|rs|flat)/i);
 
   if (pctMatch) {
     type = 'percentage';
@@ -53,8 +99,7 @@ export function parseRuleLocally(input) {
     value = parseFloat(flatMatch[1].replace(/,/g, ''));
   }
 
-  // Validate value presence
-  if (!value) {
+  if (!value || value <= 0) {
     return {
       error: true,
       ambiguityReason: "Could not find a valid discount value (e.g., '10%' or 'Rs.150')."
@@ -62,21 +107,37 @@ export function parseRuleLocally(input) {
   }
 
   // Parse scope
-  if (lowerText.includes('cart value') || lowerText.includes('cart total') || lowerText.includes('order value') || lowerText.includes('if cart total') || lowerText.includes('if cart value')) {
+  if (
+    lowerText.includes('cart value') ||
+    lowerText.includes('cart total') ||
+    lowerText.includes('order value') ||
+    lowerText.includes('entire cart') ||
+    lowerText.includes('if cart')
+  ) {
     scope = 'cart';
-    const thresholdMatch = lowerText.match(/(?:more than|above|over|>=|exceeds)\s*(?:rs\.?\s*)?([\d,]+)/i) || lowerText.match(/(?:min|minimum|threshold)\s*(?:of\s*)?(?:rs\.?\s*)?([\d,]+)/i);
+    const thresholdMatch =
+      lowerText.match(
+        /(?:more than|greater than|above|over|>=|exceeds|exceeding|at least)\s*(?:rs\.?\s*|₹\s*)?([\d,]+)/i
+      ) ||
+      lowerText.match(/(?:min|minimum|threshold)\s*(?:of\s*)?(?:rs\.?\s*|₹\s*)?([\d,]+)/i);
+
     if (thresholdMatch) {
       minCartValue = parseFloat(thresholdMatch[1].replace(/,/g, ''));
     } else {
       return {
         error: true,
-        ambiguityReason: "Cart discount detected, but could not determine the threshold value (e.g. 'more than Rs.5,000')."
+        ambiguityReason:
+          "Cart discount detected, but could not determine the threshold value (e.g., 'more than Rs.5,000')."
       };
     }
   } else {
     // Brand or platform scope
-    const brandMatch = text.match(/(?:for|on|all)\s+([A-Za-z\s]+?)\s+brand/i) || text.match(/brand\s+([A-Za-z\s]+)/i);
-    const platformMatch = text.match(/(?:on|for)\s+([A-Za-z\s]+?)\s+(?:items|platform|site|marketplace)/i);
+    const brandMatch =
+      text.match(/(?:for|on|all)\s+([A-Za-z0-9\s]+?)\s+brand/i) ||
+      text.match(/brand\s+([A-Za-z0-9\s]+)/i);
+    const platformMatch = text.match(
+      /(?:on|for|all)\s+([A-Za-z0-9\s]+?)\s+(?:items|products|platform|site|marketplace)/i
+    );
 
     if (brandMatch) {
       scope = 'brand';
@@ -88,12 +149,11 @@ export function parseRuleLocally(input) {
         appliesTo = 'Amazon India';
       }
     } else {
-      // Search for known keywords
       const knownBrands = ['Natura Casa', 'LivSpace Pro', 'Nordic Basics'];
       const knownPlatforms = ['Amazon India', 'Flipkart', 'Noon'];
 
-      const foundBrand = knownBrands.find(b => lowerText.includes(b.toLowerCase()));
-      const foundPlatform = knownPlatforms.find(p => lowerText.includes(p.toLowerCase()));
+      const foundBrand = knownBrands.find((b) => lowerText.includes(b.toLowerCase()));
+      const foundPlatform = knownPlatforms.find((p) => lowerText.includes(p.toLowerCase()));
 
       if (foundBrand) {
         scope = 'brand';
@@ -104,26 +164,51 @@ export function parseRuleLocally(input) {
       } else {
         return {
           error: true,
-          ambiguityReason: "Could not determine the scope (e.g., which brand or platform this applies to, or if it is a cart-level rule)."
+          ambiguityReason:
+            'Could not determine the scope (specify a brand, a platform, or a minimum cart value).'
         };
       }
     }
   }
 
-  return {
-    ruleId: 'NL-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+  const candidate = {
+    ruleId: generateRuleId(),
     scope,
-    appliesTo,
+    appliesTo: scope === 'cart' ? '' : appliesTo,
     type,
     value,
     stackable,
-    minCartValue
+    minCartValue: scope === 'cart' ? minCartValue : null
   };
+
+  const validationError = validateParsedRule(candidate);
+  if (validationError) {
+    return {
+      error: true,
+      ambiguityReason: validationError
+    };
+  }
+
+  return candidate;
 }
 
+/**
+ * Parses a plain English discount rule using Google Gemini 2.5 Flash
+ * with structured JSON output and runtime validation.
+ */
 export async function parseRuleWithLLM(input, apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  
+  const cleanInput = String(input || '').trim();
+  if (!cleanInput) {
+    return {
+      error: true,
+      ambiguityReason: 'Please enter a discount rule description.'
+    };
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
+    apiKey.trim()
+  )}`;
+
   const systemPrompt = `You are an AI assistant that parses plain English e-commerce discount rules into a structured JSON format.
 Analyze the input text carefully.
 
@@ -147,7 +232,7 @@ Guidelines:
 - "minCartValue" is a positive number representing the threshold cart value (in Rs) for "cart" scope rules.
 - If the rule is vague (e.g. "Give a discount for big orders" which doesn't specify a value or a threshold), set "ambiguityReason" to a friendly explanation of what is missing. Do not populate the other fields if ambiguous.
 
-Here are examples:
+Examples:
 1. Input: "20% off for Natura Casa brand, stackable with other offers"
    Output: {"scope": "brand", "appliesTo": "Natura Casa", "type": "percentage", "value": 20, "stackable": true, "minCartValue": null, "ambiguityReason": null}
 
@@ -158,40 +243,39 @@ Here are examples:
    Output: {"scope": "cart", "appliesTo": null, "type": "percentage", "value": 10, "stackable": false, "minCartValue": 5000, "ambiguityReason": null}
 
 4. Input: "Give a discount for big orders"
-   Output: {"scope": null, "appliesTo": null, "type": null, "value": null, "stackable": false, "minCartValue": null, "ambiguityReason": "The rule is too ambiguous: it does not specify the discount value (e.g., 10%) or the threshold cart value (e.g., Rs.5,000). Please be more specific."}
-`;
+   Output: {"scope": null, "appliesTo": null, "type": null, "value": null, "stackable": false, "minCartValue": null, "ambiguityReason": "The rule is too ambiguous: it does not specify the discount value (e.g., 10%) or the threshold cart value (e.g., Rs.5,000). Please be more specific."}`;
 
   const requestBody = {
     contents: [
       {
-        role: "user",
+        role: 'user',
         parts: [
           { text: systemPrompt },
-          { text: `Input text to parse: "${input}"` }
+          { text: `Input text to parse: "${cleanInput}"` }
         ]
       }
     ],
     generationConfig: {
-      responseMimeType: "application/json",
+      responseMimeType: 'application/json',
       responseSchema: {
-        type: "OBJECT",
+        type: 'OBJECT',
         properties: {
-          scope: { type: "STRING", enum: ["brand", "platform", "cart"] },
-          appliesTo: { type: "STRING" },
-          type: { type: "STRING", enum: ["percentage", "flat"] },
-          value: { type: "NUMBER" },
-          stackable: { type: "BOOLEAN" },
-          minCartValue: { type: "NUMBER" },
-          ambiguityReason: { type: "STRING" }
+          scope: { type: 'STRING', enum: ['brand', 'platform', 'cart'] },
+          appliesTo: { type: 'STRING' },
+          type: { type: 'STRING', enum: ['percentage', 'flat'] },
+          value: { type: 'NUMBER' },
+          stackable: { type: 'BOOLEAN' },
+          minCartValue: { type: 'NUMBER' },
+          ambiguityReason: { type: 'STRING' }
         }
       }
     }
   };
 
   const response = await fetch(url, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json"
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(requestBody)
   });
@@ -202,8 +286,18 @@ Here are examples:
   }
 
   const json = await response.json();
-  const textContent = json.candidates[0].content.parts[0].text;
-  const parsed = JSON.parse(textContent);
+  const textContent = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!textContent) {
+    throw new Error('Gemini API returned an empty response.');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(textContent);
+  } catch {
+    throw new Error('Failed to parse JSON returned by Gemini API.');
+  }
 
   if (parsed.ambiguityReason) {
     return {
@@ -212,13 +306,23 @@ Here are examples:
     };
   }
 
-  return {
-    ruleId: 'NL-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+  const candidate = {
+    ruleId: generateRuleId(),
     scope: parsed.scope,
-    appliesTo: parsed.appliesTo || '',
+    appliesTo: parsed.scope === 'cart' ? '' : String(parsed.appliesTo || '').trim(),
     type: parsed.type,
     value: parsed.value,
-    stackable: parsed.stackable || false,
-    minCartValue: parsed.minCartValue || null
+    stackable: Boolean(parsed.stackable),
+    minCartValue: parsed.scope === 'cart' ? parsed.minCartValue : null
   };
+
+  const validationError = validateParsedRule(candidate);
+  if (validationError) {
+    return {
+      error: true,
+      ambiguityReason: `Invalid rule returned by LLM: ${validationError}`
+    };
+  }
+
+  return candidate;
 }
